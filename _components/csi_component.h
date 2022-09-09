@@ -5,8 +5,10 @@
 #include "math.h"
 #include <sstream>
 #include <iostream>
+#include "esp_system.h"
 
 char *project_type;
+char this_mac[20] = {0};
 
 #define CSI_RAW 1
 #define CSI_AMPLITUDE 0
@@ -24,9 +26,17 @@ void _wifi_csi_cb(void *ctx, wifi_csi_info_t *data) {
     char mac[20] = {0};
     sprintf(mac, "%02X:%02X:%02X:%02X:%02X:%02X", d.mac[0], d.mac[1], d.mac[2], d.mac[3], d.mac[4], d.mac[5]);
 
-    ss << "CSI_DATA,"
-       << project_type << ","
-       << mac << ","
+    /* Use the received timestamp to generate a start and end guard for each line to help identify corrupt data.
+     * Add the receiving device mac address to the output.
+     * Add a column indicating CSI format (RAW, AMP, PHASE)
+     * Makes it parseable as JSON:
+     * 	 Wrap the text fields in quotes.
+     * 	 Separate the CSI data by commas.
+     */
+    ss << "[" << d.rx_ctrl.timestamp << ",\"CSI_DATA\","
+       << "\"" << project_type << "\"" << ","
+       << "\"" <<this_mac << "\"" << ","
+       << "\"" <<mac << "\"" << ","
        // https://github.com/espressif/esp-idf/blob/9d0ca60398481a44861542638cfdc1949bb6f312/components/esp_wifi/include/esp_wifi_types.h#L314
        << d.rx_ctrl.rssi << ","
        << d.rx_ctrl.rate << ","
@@ -49,7 +59,7 @@ void _wifi_csi_cb(void *ctx, wifi_csi_info_t *data) {
        << d.rx_ctrl.rx_state << ","
        << real_time_set << ","
        << get_steady_clock_timestamp() << ","
-       << data->len << ",[";
+       << data->len;
 
 #if CONFIG_SHOULD_COLLECT_ONLY_LLTF
     int data_len = 128;
@@ -59,24 +69,28 @@ void _wifi_csi_cb(void *ctx, wifi_csi_info_t *data) {
 
 int8_t *my_ptr;
 #if CSI_RAW
+    ss << "\"CSI_RAW\"" << ",[";
     my_ptr = data->buf;
     for (int i = 0; i < data_len; i++) {
-        ss << (int) my_ptr[i] << " ";
+        ss << (int) my_ptr[i] << ",";
     }
 #endif
 #if CSI_AMPLITUDE
+    ss << "\"CSI_AMP\"" << ",[";
     my_ptr = data->buf;
     for (int i = 0; i < data_len / 2; i++) {
-        ss << (int) sqrt(pow(my_ptr[i * 2], 2) + pow(my_ptr[(i * 2) + 1], 2)) << " ";
+        ss << (int) sqrt(pow(my_ptr[i * 2], 2) + pow(my_ptr[(i * 2) + 1], 2)) << ",";
     }
 #endif
 #if CSI_PHASE
+    ss << "\"CSI_PHASE\"" << ",[";
     my_ptr = data->buf;
     for (int i = 0; i < data_len / 2; i++) {
-        ss << (int) atan2(my_ptr[i*2], my_ptr[(i*2)+1]) << " ";
+        ss << (int) atan2(my_ptr[i*2], my_ptr[(i*2)+1]) << ",";
     }
 #endif
-    ss << "]\n";
+    ss << "],";
+    ss << d.rx_ctrl.timestamp << "]\n";
 
     printf(ss.str().c_str());
     fflush(stdout);
@@ -85,7 +99,7 @@ int8_t *my_ptr;
 }
 
 void _print_csi_csv_header() {
-    char *header_str = (char *) "type,role,mac,rssi,rate,sig_mode,mcs,bandwidth,smoothing,not_sounding,aggregation,stbc,fec_coding,sgi,noise_floor,ampdu_cnt,channel,secondary_channel,local_timestamp,ant,sig_len,rx_state,real_time_set,real_timestamp,len,CSI_DATA\n";
+    char *header_str = (char *) "guard,type,role,rcvmac,srcmac,rssi,rate,sig_mode,mcs,bandwidth,smoothing,not_sounding,aggregation,stbc,fec_coding,sgi,noise_floor,ampdu_cnt,channel,secondary_channel,local_timestamp,ant,sig_len,rx_state,real_time_set,real_timestamp,len,CSI_DATA_format,CSI_DATA,guard\n";
     outprintf(header_str);
 }
 
@@ -107,6 +121,9 @@ void csi_init(char *type) {
     ESP_ERROR_CHECK(esp_wifi_set_csi_config(&configuration_csi));
     ESP_ERROR_CHECK(esp_wifi_set_csi_rx_cb(&_wifi_csi_cb, NULL));
 
+    uint8_t i[6] = {0};
+    ESP_ERROR_CHECK(esp_efuse_mac_get_default(i));
+    sprintf(this_mac, "%02X:%02X:%02X:%02X:%02X:%02X", i.mac[0], i.mac[1], i.mac[2], i.mac[3], i.mac[4], i.mac[5]);
     _print_csi_csv_header();
 #endif
 }
