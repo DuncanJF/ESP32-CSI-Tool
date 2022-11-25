@@ -1,5 +1,38 @@
 menu "ESP32 CSI Tool Config"
 
+    config WIFI_NATURE
+        int "Nature of this device as a wifi network participant."
+        default 4
+        help
+            Nature of this device as a wifi network participant.
+            1 == 
+
+    config DATA_EXPORT_FORMAT
+        int "Data export format version"
+        default 3
+        help
+            Select the serialization format of the CSI data records.
+            0 == Collect but drop all data (used for performance testing)
+            1 == Original CSV formatting version
+            2 == JSON array formatting
+            3 == Full record encoded as base64.               
+
+    config ENABLE_SUMMARY_STATS
+        bool "Collect statistics about CSI data rates."
+        default 0
+        help
+            Collect statistics about CSI data rates and report to console.
+            0 == Disable collection of statistics
+            1 == Enable collection of statistics
+            
+    config ENABLE_STBC_HTLTF
+        bool "Enable the collection of STBC CSI data."
+        default 0
+        help
+            ESP32 WiFi supports Space-Time Block Code (STBC) but STBC needs multiple transmit antennae.
+            Where it is known aprioro there will not be any STBC (eg. 1 Tx antenna of another ESP32) the data collection can be optimized to ignoring the STBC CSI data.
+
+
     config WIFI_CHANNEL
         int "WiFi Channel"
         default 6
@@ -20,48 +53,10 @@ menu "ESP32 CSI Tool Config"
 
     config PACKET_RATE
         int "Packet TX Rate"
-        default "100"
+        default "1000"
         help
             By transmitting at some number of packets per second, the ESP32 should receive CSI at the same rate.
             However, this is not guaranteed depending on overhead such as Serial baud rate.
             Minimum value: 1, Maximum value: 1000
 
-    config SHOULD_COLLECT_CSI
-        bool "Should this ESP32 collect and print CSI data?"
-        default "n"
-        help
-            Allowing only a single ESP32 to collect CSI will likely increase the sampling frequency of your experiments.
-
-    config SHOULD_COLLECT_ONLY_LLTF
-        depends on SHOULD_COLLECT_CSI
-        bool "(Advanced users only) Should we only collect LLTF?"
-        default "y"
-        help
-            Each CSI frame can contain CSI either calculated through
-            (1) legacy long training field (LLTF),
-            (2) high throughput LTF (HT-LTF) and/or
-            (3) space-time block code HT-LTF (STBC-HT-LTF).
-            However, not all CSI frames have HT-LTF or STBC-HT-LTF while all CSI frame have LLTF.
-            For beginners collecting only LLTF is the best option while advanced users can handle issues such as
-            (1) HT-LTF or STBC-HT-LTF being missing, and
-            (2) possible decreases in sampling rate due to serial connection saturation.
-            [Advanced Users]: I cannot always help with these advanced issues,
-            but if you have ideas on improvements to these issues please share!
-
-    config SEND_CSI_TO_SERIAL
-        depends on SHOULD_COLLECT_CSI
-        bool "Send CSI data to Serial"
-        default "y"
-        help
-            Sending data through serial (to a computer) can take time and buffer space.
-            If you are storing to an SD card, it may be useful to deselect this option.
-
-    config SEND_CSI_TO_SD
-        depends on SHOULD_COLLECT_CSI
-        bool "Send CSI data to SD"
-        default "n"
-        help
-            Sending data to an SD card can take time and buffer space.
-            If your ESP32 does not have an SD card, there is no reason to use this feature.
-            If you do though, the program will be recognize this and not attempt writing to the SD card.
 endmenu

@@ -7,7 +7,7 @@ static char *SET_TIMESTAMP_SIMPLE_TEMPLATE = (char *) "%li.%li";
 static char *SET_TIMESTAMP_TEMPLATE = (char *) "SETTIME: %li.%li";
 
 bool real_time_set = false;
-
+auto reference_time = std::chrono::system_clock::now();
 bool match_set_timestamp_template(char *candidate_string) {
     long int tv_sec;
     long int tv_usec;
@@ -30,14 +30,12 @@ void time_set(char *timestamp_string) {
     }
 }
 
-double get_system_clock_timestamp() {
-    // returns timestamp in seconds (with decimal places)
-    return std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch()).count() / 1000000.0;
+long get_system_clock_timestamp() {
+    return std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch()).count() / 1000000;
 }
 
-double get_steady_clock_timestamp() {
-    // returns timestamp in seconds (with decimal places)
-    return std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch()).count() / 1000000.0;
+long get_steady_clock_timestamp() {
+    return std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch()).count() / 1000000;
 }
 
 #endif //ESP32_CSI_TIME_COMPONENT_H
