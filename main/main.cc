@@ -14,14 +14,14 @@
 #include "lwip/err.h"
 #include "lwip/sys.h"
 
-#include "../../_components/common_component.h"
-#include "../../_components/nvs_component.h"
-#include "../../_components/priorities.h"
-#include "../../_components/wifi_component.h"
-#include "../../_components/csi_component.h"
-#include "../../_components/time_component.h"
-#include "../../_components/input_component.h"
-#include "../../_components/sockets_component.h"
+#include "../_components/common_component.h"
+#include "../_components/nvs_component.h"
+#include "../_components/priorities.h"
+#include "../_components/wifi_component.h"
+#include "../_components/csi_component.h"
+#include "../_components/time_component.h"
+#include "../_components/input_component.h"
+#include "../_components/sockets_component.h"
 
 void station_init()
 {
