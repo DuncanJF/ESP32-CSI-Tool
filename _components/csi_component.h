@@ -264,6 +264,7 @@ void data_export(void *ctx, wifi_csi_info_t *data)
 	}
 	else
 	{
+		ESP_LOGW(TAG, "Invalid packet received.");
 		++invalid_counter;
 	}
 	xSemaphoreGive(mutex);
