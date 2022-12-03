@@ -59,6 +59,7 @@ COLUMN_NAMES = [
     "ant",
     "sig_len",
     "rx_state",
+    "first_word_invalid"
     "csi_len",
     "csi_data",
     "rx_timestamp_guard",
@@ -74,7 +75,7 @@ def decode_base64(txt):
     bom, fmt, rlen = struct.unpack_from("<IHi", btxt)
     row = None    
     if bom == 65534 and rlen == NO_STBC_HTLTF_ROWLEN:        
-        row = struct.unpack_from("<IHiHB6BIII6Bb10Bb3BIBHBH384sI", btxt)        
+        row = struct.unpack_from("<IHiHB6BIII6Bb10Bb3BIBHBBH384sI", btxt)        
         row = {k: v for k, v in zip(COLUMN_NAMES, row)}        
         row["this_mac"] = "{:02X}:{:02X}:{:02X}:{:02X}:{:02X}:{:02X}".format(
             row.pop("this_mac1"),
@@ -132,6 +133,7 @@ def remap_csi_indices(
     The data from the legacy, high-throughput and STBC CSI are returned in the same array.
     The mapping of IQ values to individual sub-carrier indices depends on the secondary channel,
     signal mode, channel bandwidth and stbc.
+    If first_word_invalid is Ture then the first 4 bytes of the QIQI data are inavlid.  In this case these bytes are set to missing_iq 
 
     This method:
       *  Separates the CSI into to three arrays - legacy, high-throughput and STBC high-throughput.
@@ -156,6 +158,7 @@ def remap_csi_indices(
     Where there are not 64 CSI values then the absent channels are padded with 0+j0
 
     """
+    first_word_invalid:int = row["first_word_invalid"]
     secondary_channel:int = row["secondary_channel"] # secondary channel on which this packet is received. 0: none; 1: above; 2: below 
     signal_mode :int = row["sig_mode"]   # 0: non HT(11bg) packet; 1: HT(11n) packet; 3: VHT(11ac) packet
     stbc  :int = row["stbc"] # Space Time Block Code(STBC). 0: non STBC packet; 1: STBC packet 
@@ -167,6 +170,9 @@ def remap_csi_indices(
 
     # NOTE: QI swapped to IQ here!
     csi_data = 1j * csi_data[0::2] + csi_data[1::2]
+    if first_word_invalid:
+        csi_data[0]=missing_iq
+        csi_data[1]=missing_iq
     csi_dtype : DTypeLike = csi_data.dtype
     actual_length :int = csi_data.shape[0]
 

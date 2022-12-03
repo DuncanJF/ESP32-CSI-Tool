@@ -42,7 +42,6 @@ char this_mac_str[20] = {0};
 #endif
 
 /* Metrics */
-uint32_t invalid_counter = 0;
 SemaphoreHandle_t mutex = xSemaphoreCreateMutex();
 
 #if DATA_EXPORT_FORMAT == EXPORT_BASE64
@@ -160,113 +159,110 @@ void data_export(void *ctx, wifi_csi_info_t *data)
 	 * The captured and transmitted record lengths are fixed to accomodate the maximum number of CSI bytes to reduce memory (re)allocation.
 	 */
 	xSemaphoreTake(mutex, portMAX_DELAY);
-	if (!data->first_word_invalid)
-	{
-		gettimeofday(&tv_now, NULL);
-		memset(crecord, 0, CRECORD_LENGTH);
-		unsigned char *p = crecord;
-		wifi_csi_info_t csi_info = data[0];
-		wifi_pkt_rx_ctrl_t rx_ctrl = csi_info.rx_ctrl;
-		rx_timestamp = rx_ctrl.timestamp;
-		// Output header (constant per device)
-		memcpy(p, &BOM, sizeof(BOM)); // 4
-		p += sizeof(BOM);
-		memcpy(p, &data_export_format, sizeof(data_export_format)); // 2
-		p += sizeof(data_export_format);
-		memcpy(p, &sz_crecord, sizeof(sz_crecord)); // 4
-		p += sizeof(sz_crecord);
-		memcpy(p, &csi_export_format, sizeof(csi_export_format)); // 2
-		p += sizeof(csi_export_format);
-		memcpy(p, &project_type, sizeof(project_type)); // 1
-		p += sizeof(project_type);
-		memcpy(p, this_mac, sizeof(this_mac)); // 6
-		p += sizeof(this_mac);
-		// Output body
-		tv_sec = tv_now.tv_sec;
-		tv_usec = tv_now.tv_usec;
-		memcpy(p, &tv_sec, sizeof(tv_sec)); // 4
-		p += sizeof(tv_sec);
-		memcpy(p, &tv_usec, sizeof(tv_usec)); // 4
-		p += sizeof(tv_usec);
-		memcpy(p, &rx_timestamp, sizeof(rx_timestamp)); // 4
-		p += sizeof(rx_timestamp);
-		memcpy(p, &csi_info.mac, sizeof(csi_info.mac)); // 6
-		p += sizeof(csi_info.mac);
-		sigval8 = rx_ctrl.rssi;
-		memcpy(p, &sigval8, sizeof(sigval8)); // 1 ==38
-		p += sizeof(sigval8);
-		unsigval8 = rx_ctrl.rate;
-		memcpy(p, &unsigval8, sizeof(unsigval8)); // 1
-		p += sizeof(unsigval8);
-		unsigval8 = rx_ctrl.sig_mode;
-		memcpy(p, &unsigval8, sizeof(unsigval8)); // 1
-		p += sizeof(unsigval8);
-		unsigval8 = rx_ctrl.mcs;
-		memcpy(p, &unsigval8, sizeof(unsigval8)); // 1
-		p += sizeof(unsigval8);
-		unsigval8 = rx_ctrl.cwb;
-		memcpy(p, &unsigval8, sizeof(unsigval8)); // 1
-		p += sizeof(unsigval8);
-		unsigval8 = rx_ctrl.smoothing;
-		memcpy(p, &unsigval8, sizeof(unsigval8)); // 1
-		p += sizeof(unsigval8);
-		unsigval8 = rx_ctrl.not_sounding;
-		memcpy(p, &unsigval8, sizeof(unsigval8)); // 1
-		p += sizeof(unsigval8);
-		unsigval8 = rx_ctrl.aggregation;
-		memcpy(p, &unsigval8, sizeof(unsigval8)); // 1
-		p += sizeof(unsigval8);
-		unsigval8 = rx_ctrl.stbc;
-		memcpy(p, &unsigval8, sizeof(unsigval8)); // 1 ==40
-		p += sizeof(unsigval8);
-		unsigval8 = rx_ctrl.fec_coding;
-		memcpy(p, &unsigval8, sizeof(unsigval8)); // 1
-		p += sizeof(unsigval8);
-		unsigval8 = rx_ctrl.sgi;
-		memcpy(p, &unsigval8, sizeof(unsigval8)); // 1
-		p += sizeof(unsigval8);
-		sigval8 = rx_ctrl.noise_floor;
-		memcpy(p, &sigval8, sizeof(sigval8)); // 1
-		p += sizeof(unsigval8);
-		unsigval8 = rx_ctrl.ampdu_cnt;
-		memcpy(p, &unsigval8, sizeof(unsigval8)); // 1
-		p += sizeof(unsigval8);
-		unsigval8 = rx_ctrl.channel;
-		memcpy(p, &unsigval8, sizeof(unsigval8)); // 1
-		p += sizeof(unsigval8);
-		unsigval8 = rx_ctrl.secondary_channel;
-		memcpy(p, &unsigval8, sizeof(unsigval8)); // 1
-		p += sizeof(unsigval8);
-		rx_timestamp = rx_ctrl.timestamp;
-		memcpy(p, &rx_timestamp, sizeof(rx_timestamp)); // 4 ==50
-		p += sizeof(rx_timestamp);
-		unsigval8 = rx_ctrl.ant;
-		memcpy(p, &unsigval8, sizeof(unsigval8)); // 1
-		p += sizeof(unsigval8);
-		unsigval16 = rx_ctrl.sig_len;
-		memcpy(p, &unsigval16, sizeof(unsigval16)); // 2
-		p += sizeof(unsigval16);
-		unsigval8 = rx_ctrl.rx_state;
-		memcpy(p, &unsigval8, sizeof(unsigval8)); // 1
-		p += sizeof(unsigval8);
-		csi_data_len = data->len;
-		memcpy(p, &csi_data_len, sizeof(csi_data_len)); // 2
-		p += sizeof(csi_data_len);
-		memcpy(p, data->buf, csi_data_len);
-		p += MAX_CSI_BYTES;
-		// Output tail
-		memcpy(p, &rx_timestamp, sizeof(rx_timestamp)); // 4
-		p += sizeof(rx_timestamp);
+	gettimeofday(&tv_now, NULL);
+	memset(crecord, 0, CRECORD_LENGTH);
+	unsigned char *p = crecord;
+	wifi_csi_info_t csi_info = data[0];
+	wifi_pkt_rx_ctrl_t rx_ctrl = csi_info.rx_ctrl;
+	rx_timestamp = rx_ctrl.timestamp;
+	// Output header (constant per device)
+	memcpy(p, &BOM, sizeof(BOM)); // 4
+	p += sizeof(BOM);
+	memcpy(p, &data_export_format, sizeof(data_export_format)); // 2
+	p += sizeof(data_export_format);
+	memcpy(p, &sz_crecord, sizeof(sz_crecord)); // 4
+	p += sizeof(sz_crecord);
+	memcpy(p, &csi_export_format, sizeof(csi_export_format)); // 2
+	p += sizeof(csi_export_format);
+	memcpy(p, &project_type, sizeof(project_type)); // 1
+	p += sizeof(project_type);
+	memcpy(p, this_mac, sizeof(this_mac)); // 6
+	p += sizeof(this_mac);
+	// Output body
+	tv_sec = tv_now.tv_sec;
+	tv_usec = tv_now.tv_usec;
+	memcpy(p, &tv_sec, sizeof(tv_sec)); // 4
+	p += sizeof(tv_sec);
+	memcpy(p, &tv_usec, sizeof(tv_usec)); // 4
+	p += sizeof(tv_usec);
+	memcpy(p, &rx_timestamp, sizeof(rx_timestamp)); // 4
+	p += sizeof(rx_timestamp);
+	memcpy(p, &csi_info.mac, sizeof(csi_info.mac)); // 6
+	p += sizeof(csi_info.mac);
+	sigval8 = rx_ctrl.rssi;
+	memcpy(p, &sigval8, sizeof(sigval8)); // 1 ==38
+	p += sizeof(sigval8);
+	unsigval8 = rx_ctrl.rate;
+	memcpy(p, &unsigval8, sizeof(unsigval8)); // 1
+	p += sizeof(unsigval8);
+	unsigval8 = rx_ctrl.sig_mode;
+	memcpy(p, &unsigval8, sizeof(unsigval8)); // 1
+	p += sizeof(unsigval8);
+	unsigval8 = rx_ctrl.mcs;
+	memcpy(p, &unsigval8, sizeof(unsigval8)); // 1
+	p += sizeof(unsigval8);
+	unsigval8 = rx_ctrl.cwb;
+	memcpy(p, &unsigval8, sizeof(unsigval8)); // 1
+	p += sizeof(unsigval8);
+	unsigval8 = rx_ctrl.smoothing;
+	memcpy(p, &unsigval8, sizeof(unsigval8)); // 1
+	p += sizeof(unsigval8);
+	unsigval8 = rx_ctrl.not_sounding;
+	memcpy(p, &unsigval8, sizeof(unsigval8)); // 1
+	p += sizeof(unsigval8);
+	unsigval8 = rx_ctrl.aggregation;
+	memcpy(p, &unsigval8, sizeof(unsigval8)); // 1
+	p += sizeof(unsigval8);
+	unsigval8 = rx_ctrl.stbc;
+	memcpy(p, &unsigval8, sizeof(unsigval8)); // 1 ==40
+	p += sizeof(unsigval8);
+	unsigval8 = rx_ctrl.fec_coding;
+	memcpy(p, &unsigval8, sizeof(unsigval8)); // 1
+	p += sizeof(unsigval8);
+	unsigval8 = rx_ctrl.sgi;
+	memcpy(p, &unsigval8, sizeof(unsigval8)); // 1
+	p += sizeof(unsigval8);
+	sigval8 = rx_ctrl.noise_floor;
+	memcpy(p, &sigval8, sizeof(sigval8)); // 1
+	p += sizeof(unsigval8);
+	unsigval8 = rx_ctrl.ampdu_cnt;
+	memcpy(p, &unsigval8, sizeof(unsigval8)); // 1
+	p += sizeof(unsigval8);
+	unsigval8 = rx_ctrl.channel;
+	memcpy(p, &unsigval8, sizeof(unsigval8)); // 1
+	p += sizeof(unsigval8);
+	unsigval8 = rx_ctrl.secondary_channel;
+	memcpy(p, &unsigval8, sizeof(unsigval8)); // 1
+	p += sizeof(unsigval8);
+	rx_timestamp = rx_ctrl.timestamp;
+	memcpy(p, &rx_timestamp, sizeof(rx_timestamp)); // 4 ==50
+	p += sizeof(rx_timestamp);
+	unsigval8 = rx_ctrl.ant;
+	memcpy(p, &unsigval8, sizeof(unsigval8)); // 1
+	p += sizeof(unsigval8);
+	unsigval16 = rx_ctrl.sig_len;
+	memcpy(p, &unsigval16, sizeof(unsigval16)); // 2
+	p += sizeof(unsigval16);
+	unsigval8 = rx_ctrl.rx_state;
+	memcpy(p, &unsigval8, sizeof(unsigval8)); // 1
+	p += sizeof(unsigval8);
+	unsigval8 = data->first_word_invalid;
+	memcpy(p, &unsigval8, sizeof(unsigval8)); // 1
+	p += sizeof(unsigval8);
+	csi_data_len = data->len;
+	memcpy(p, &csi_data_len, sizeof(csi_data_len)); // 2
+	p += sizeof(csi_data_len);
 
-		base64encode();
-		printf("%s", hrecord);
-		fflush(stdout);
-	}
-	else
-	{
-		ESP_LOGW(TAG, "Invalid packet received.");
-		++invalid_counter;
-	}
+	memcpy(p, data->buf, csi_data_len);
+	p += MAX_CSI_BYTES;
+	// Output tail
+	memcpy(p, &rx_timestamp, sizeof(rx_timestamp)); // 4
+	p += sizeof(rx_timestamp);
+
+	base64encode();
+	printf("%s", hrecord);
+	fflush(stdout);
+
 	xSemaphoreGive(mutex);
 	taskYIELD();
 }
@@ -284,59 +280,53 @@ void data_export(void *ctx, wifi_csi_info_t *data)
 	 * This reduces the transmitted record length and it maintains most fields in human-parseable forms.
 	 */
 	xSemaphoreTake(mutex, portMAX_DELAY);
-	if (!data->first_word_invalid)
-	{
-		gettimeofday(&tv_now, NULL);
-		printf_timestamp = std::chrono::steady_clock::now();
-		memset(crecord, 0, CRECORD_LENGTH);
-		wifi_csi_info_t csi_info = data[0];
-		wifi_pkt_rx_ctrl_t rx_ctrl = csi_info.rx_ctrl;
-		rx_timestamp = rx_ctrl.timestamp;
+	gettimeofday(&tv_now, NULL);
+	printf_timestamp = std::chrono::steady_clock::now();
+	memset(crecord, 0, CRECORD_LENGTH);
+	wifi_csi_info_t csi_info = data[0];
+	wifi_pkt_rx_ctrl_t rx_ctrl = csi_info.rx_ctrl;
+	rx_timestamp = rx_ctrl.timestamp;
 
-		sprintf(pkt_mac, "%02X:%02X:%02X:%02X:%02X:%02X", csi_info.mac[0], csi_info.mac[1], csi_info.mac[2], csi_info.mac[3], csi_info.mac[4], csi_info.mac[5]);
-		std::stringstream ss;
+	sprintf(pkt_mac, "%02X:%02X:%02X:%02X:%02X:%02X", csi_info.mac[0], csi_info.mac[1], csi_info.mac[2], csi_info.mac[3], csi_info.mac[4], csi_info.mac[5]);
+	std::stringstream ss;
 
-		ss << "["
-		   << BOM << ","
-		   << data_export_format << ","
-		   << csi_export_format << ","
-		   << (int)project_type << ","
-		   << this_mac_str << ","
-		   << tv_now.tv_sec << ","
-		   << tv_now.tv_usec << ","
-		   << rx_timestamp << ","
-		   << pkt_mac << ","
-		   << csi_info.rx_ctrl.rssi << ","
-		   << csi_info.rx_ctrl.rate << ","
-		   << csi_info.rx_ctrl.sig_mode << ","
-		   << csi_info.rx_ctrl.mcs << ","
-		   << csi_info.rx_ctrl.cwb << ","
-		   << csi_info.rx_ctrl.smoothing << ","
-		   << csi_info.rx_ctrl.not_sounding << ","
-		   << csi_info.rx_ctrl.aggregation << ","
-		   << csi_info.rx_ctrl.stbc << ","
-		   << csi_info.rx_ctrl.fec_coding << ","
-		   << csi_info.rx_ctrl.sgi << ","
-		   << csi_info.rx_ctrl.noise_floor << ","
-		   << csi_info.rx_ctrl.ampdu_cnt << ","
-		   << csi_info.rx_ctrl.channel << ","
-		   << csi_info.rx_ctrl.secondary_channel << ","
-		   << csi_info.rx_ctrl.timestamp << ","
-		   << csi_info.rx_ctrl.ant << ","
-		   << csi_info.rx_ctrl.sig_len << ","
-		   << csi_info.rx_ctrl.rx_state << ","
-		   << data->len << ",\"";
+	ss << "["
+		<< BOM << ","
+		<< data_export_format << ","
+		<< csi_export_format << ","
+		<< (int)project_type << ","
+		<< this_mac_str << ","
+		<< tv_now.tv_sec << ","
+		<< tv_now.tv_usec << ","
+		<< rx_timestamp << ","
+		<< pkt_mac << ","
+		<< csi_info.rx_ctrl.rssi << ","
+		<< csi_info.rx_ctrl.rate << ","
+		<< csi_info.rx_ctrl.sig_mode << ","
+		<< csi_info.rx_ctrl.mcs << ","
+		<< csi_info.rx_ctrl.cwb << ","
+		<< csi_info.rx_ctrl.smoothing << ","
+		<< csi_info.rx_ctrl.not_sounding << ","
+		<< csi_info.rx_ctrl.aggregation << ","
+		<< csi_info.rx_ctrl.stbc << ","
+		<< csi_info.rx_ctrl.fec_coding << ","
+		<< csi_info.rx_ctrl.sgi << ","
+		<< csi_info.rx_ctrl.noise_floor << ","
+		<< csi_info.rx_ctrl.ampdu_cnt << ","
+		<< csi_info.rx_ctrl.channel << ","
+		<< csi_info.rx_ctrl.secondary_channel << ","
+		<< csi_info.rx_ctrl.timestamp << ","
+		<< csi_info.rx_ctrl.ant << ","
+		<< csi_info.rx_ctrl.sig_len << ","
+		<< csi_info.rx_ctrl.rx_state << ","
+		<< data->first_word_invalid ? 1 : 0 << ","
+		<< data->len << ",\"";
 
-		memcpy(crecord, data->buf, data->len);
-		base64encode();
-		ss << hrecord << "\"," << rx_timestamp << "]\n";
-		printf(ss.str().c_str());
-		fflush(stdout);
-	}
-	else
-	{
-		++invalid_counter;
-	}
+	memcpy(crecord, data->buf, data->len);
+	base64encode();
+	ss << hrecord << "\"," << rx_timestamp << "]\n";
+	printf(ss.str().c_str());
+	fflush(stdout);
 	xSemaphoreGive(mutex);
 	taskYIELD();
 }
@@ -407,10 +397,6 @@ void data_export(void *ctx, wifi_csi_info_t *data)
 	 * Do next to nothing, but do it well -- Usefull for perfromance monitoring.
 	 */
 	xSemaphoreTake(mutex, portMAX_DELAY);
-	if (data->first_word_invalid)
-	{
-		++invalid_counter;
-	}
 	xSemaphoreGive(mutex);
 	taskYIELD();
 }
@@ -436,10 +422,8 @@ void gather_stats(void *ctx, wifi_csi_info_t *data)
 	if (pkt_counter > report_interval)
 	{
 		std::chrono::duration<long, std::micro> dt = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - interval_timestamp);
-		ESP_LOGI(TAG, "{ \"msgid\":2, \"pkt_counter\":%d, \"invalid_counter\":%d, \"per packet dt\":%f }\n", pkt_counter, invalid_counter, (double)dt.count() / pkt_counter);
-		ESP_LOGI(TAG, "{ \"msgid\":3, \"Minimum free heap size\": \"%d\" }\n", esp_get_minimum_free_heap_size());
+		ESP_LOGI(TAG, "{ \"msgid\":2, \"pkt_counter\":%d, \"per packet dt\":%f, \"Minimum free heap size\": \"%d\" }\n", pkt_counter, (double)dt.count() / pkt_counter, esp_get_minimum_free_heap_size());		
 		pkt_counter = 0;
-		invalid_counter = 0;
 		interval_timestamp = std::chrono::steady_clock::now();
 	}
 
