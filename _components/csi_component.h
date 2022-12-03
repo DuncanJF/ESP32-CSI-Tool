@@ -21,19 +21,19 @@ enum DataExportFormat
 	FULL_AS_JSON = EXPORT_JSON,
 	FULL_AS_BASE64 = EXPORT_BASE64
 };
-const uint16_t data_export_format = DATA_EXPORT_FORMAT;
+static const uint16_t data_export_format = DATA_EXPORT_FORMAT;
 enum CsiExportFormat
 {
 	I8QI = 1
 };
-const uint16_t csi_export_format = I8QI;
+static const uint16_t csi_export_format = I8QI;
 
 /* Compile time constants */
-const uint32_t BOM = 65534;
+static const uint32_t BOM = 65534;
 
 /* Runtime fixed values */
-uint8_t project_type;
-uint8_t this_mac[6] = {0};
+static uint8_t project_type;
+static uint8_t this_mac[6] = {0};
 
 /* Fixed length arrays.*/
 
@@ -47,14 +47,14 @@ SemaphoreHandle_t mutex = xSemaphoreCreateMutex();
 #if DATA_EXPORT_FORMAT == EXPORT_BASE64
 /* CRECORD AND HRECORD lengths are for the whole record excluding trailing '\n' and '\0' */
 #ifdef CONFIG_ENABLE_STBC_HTLTF
-/* CRECORD_LENGTH: Length of record + then pad to 4 byte alignment. */
+/* CRECORD_LENGTH: Length of record then padded out to 4 byte alignment. */
 #define CRECORD_LENGTH 680
 /* HRECORD_LENGTH: Minimun 4*ceil(CRECORD_LENGTH/3), makes it 4 byte aligned by default. */
 #define HRECORD_LENGTH 908
 /* CTAIL = CRECORD_LENGTH%3 */
 #define CTAIL 2
-/* CALIGN = PADDING TO align record on 4byte boundary */
-#define CALIGN 2
+/* CALIGN = PADDING TO align crecord on 4 byte boundary */
+#define CALIGN 1
 #else
 #define CRECORD_LENGTH 452
 #define HRECORD_LENGTH 604
@@ -82,22 +82,21 @@ SemaphoreHandle_t mutex = xSemaphoreCreateMutex();
 
 static const char *Base64alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 // Add byte space for \0 but retain 4 byte alignment.
-unsigned char crecord[CRECORD_LENGTH + 4] = {0};
-const size_t sz_crecord = CRECORD_LENGTH;
-uint32_t rx_timestamp = 0;
-struct timeval tv_now;
-uint32_t tv_sec;
-uint32_t tv_usec;
+static unsigned char crecord[CRECORD_LENGTH + 4] = {0};
+static const size_t sz_crecord = CRECORD_LENGTH;
+static uint32_t rx_timestamp = 0;
+static struct timeval tv_now;
+static uint32_t tv_sec;
+static uint32_t tv_usec;
 // Add bytes for trailing \n and \0 but retain 4 byte alignment.
-char hrecord[HRECORD_LENGTH + 4] = {0};
+static char hrecord[HRECORD_LENGTH + 4] = {0};
 
-void base64encode()
+inline void base64encode()
 {
-	const size_t last = ENCLAST;
-	size_t hpos = 0, ctail = CTAIL;
+	size_t hpos = 0;
 	memset(hrecord, '=', HRECORD_LENGTH);
 
-	for (size_t i = 0; i < last; i += 3)
+	for (size_t i = 0; i < ENCLAST; i += 3)
 	{
 		int n = int(crecord[i]) << 16 | int(crecord[i + 1]) << 8 | crecord[i + 2];
 		hrecord[hpos++] = Base64alphabet[n >> 18];
@@ -105,17 +104,17 @@ void base64encode()
 		hrecord[hpos++] = Base64alphabet[n >> 6 & 0x3F];
 		hrecord[hpos++] = Base64alphabet[n & 0x3F];
 	}
-	if (ctail == 2)
+	if (CTAIL == 2)
 	{
-		int n = int(crecord[last]) << 8 | int(crecord[last + 1]);
+		int n = int(crecord[ENCLAST]) << 8 | int(crecord[ENCLAST + 1]);
 		hrecord[hpos++] = Base64alphabet[n >> 10 & 0x3F];
 		hrecord[hpos++] = Base64alphabet[n >> 4 & 0x03F];
 		hrecord[hpos++] = Base64alphabet[n << 2 & 0x3F];
 		hpos++;
 	}
-	else if (ctail)
+	else if (CTAIL)
 	{
-		int n = int(crecord[last]);
+		int n = int(crecord[ENCLAST]);
 		hrecord[hpos++] = Base64alphabet[n >> 2];
 		hrecord[hpos++] = Base64alphabet[n << 4 & 0x3F];
 		hpos += 2;
@@ -126,29 +125,36 @@ void base64encode()
 
 #if DATA_EXPORT_FORMAT == EXPORT_BASE64
 /* Fixed space for temporary values */
-int8_t sigval8 = 0;
-uint8_t unsigval8 = 0;
-uint16_t unsigval16 = 0;
-uint16_t csi_data_len = 0;
+static int8_t sigval8 = 0;
+static uint8_t unsigval8 = 0;
+static uint16_t unsigval16 = 0;
+static uint16_t csi_data_len = 0;
 
-void data_export(void *ctx, wifi_csi_info_t *data)
+inline void data_export(void *ctx, wifi_csi_info_t *data)
 {
 	/*
-	 * Copy the data bytewise into a string of bytes then export as base64.
+	 * Copy the data bytewise then base64 the binary record for export.
 	 *
 	 * The resulting record for tranmission is less than half the size of the JSON and CSV encoded records.
 	 *
 	 * Simple delta t performance monitoring shows the code prior to this point executes in about 5-15us for the bytewise copy
 	 * and 30-45us for the base64 encoding on an ESP32S3 running at 240MHz.
-	 * The printf times show a lot of variation but are connsistent with the set baud rate > 2500us @2000000 and > 1400us @4000000
+	 * The printf times shows variation but are connsistent with the set baud rate > 2500us @2000000 and > 1400us @4000000
 	 * (remember the 8/10 encoding!)
-	 * ie. the number of characters transmitted is a limiting factor on the rate which data can be collected.
+	 * ie. the number of characters transmitted is a major limiting factor on the rate which data can be collected.
 	 *
 	 * Each record starts with a header which is constant for any given run.
 	 * This is followed by the variable body.
 	 * Since the system time will be synched externally the system time rather than monotonic time is used as a timestamp.
 	 * The received packet timestamp is added as a prefix and suffix to the record body.  This makes a unique, per record, guard value.
 	 * which helps identify data corruption due to transmission loss.
+	 * There is an open question about what happens if new CSI data arrives while the current record is being processed.
+	 * This should all be processed on CPU0 with the same priority and under the mutex.  
+	 * The mutex should stop two data exports running on top of each other but that doesn't prevent the wifi_csi_info_t
+	 * being written over by the behind the scenes WiFi receive chain.  The receive timestamp from wifi_csi_info_t
+	 * written near the start and at the end of the export record act as guard values.  Ff wifi_csi_info_t does change while
+	 * the export (c)record is being created then the guard value will not match.  So far the only guard value mismatches which
+	 * have been seen were caused by data loss ov er UART.
 	 *
 	 * Fields from the wifi_csi_info_t and associated wifi_pkt_rx_ctrl_t can be combined as bitfields to reduce the transmission length
 	 * further but the reduction is minor compared to swapping to binary encoding.
@@ -158,7 +164,6 @@ void data_export(void *ctx, wifi_csi_info_t *data)
 	 *
 	 * The captured and transmitted record lengths are fixed to accomodate the maximum number of CSI bytes to reduce memory (re)allocation.
 	 */
-	xSemaphoreTake(mutex, portMAX_DELAY);
 	gettimeofday(&tv_now, NULL);
 	memset(crecord, 0, CRECORD_LENGTH);
 	unsigned char *p = crecord;
@@ -256,22 +261,19 @@ void data_export(void *ctx, wifi_csi_info_t *data)
 	memcpy(p, data->buf, csi_data_len);
 	p += MAX_CSI_BYTES;
 	// Output tail
+	rx_timestamp = rx_ctrl.timestamp;
 	memcpy(p, &rx_timestamp, sizeof(rx_timestamp)); // 4
 	p += sizeof(rx_timestamp);
 
 	base64encode();
 	printf("%s", hrecord);
 	fflush(stdout);
-
-	xSemaphoreGive(mutex);
-	taskYIELD();
 }
 #endif
 
 #if DATA_EXPORT_FORMAT == EXPORT_JSON
 char pkt_mac[20] = {0};
-auto printf_timestamp = std::chrono::steady_clock::now();
-void data_export(void *ctx, wifi_csi_info_t *data)
+inline void data_export(void *ctx, wifi_csi_info_t *data)
 {
 	/*
 	 * Halfway house between CSV and Base64 encoded binary data.
@@ -279,9 +281,7 @@ void data_export(void *ctx, wifi_csi_info_t *data)
 	 * All fields are exported as text representations except the CSI array which is Base64 encoded binary data.
 	 * This reduces the transmitted record length and it maintains most fields in human-parseable forms.
 	 */
-	xSemaphoreTake(mutex, portMAX_DELAY);
 	gettimeofday(&tv_now, NULL);
-	printf_timestamp = std::chrono::steady_clock::now();
 	memset(crecord, 0, CRECORD_LENGTH);
 	wifi_csi_info_t csi_info = data[0];
 	wifi_pkt_rx_ctrl_t rx_ctrl = csi_info.rx_ctrl;
@@ -291,54 +291,53 @@ void data_export(void *ctx, wifi_csi_info_t *data)
 	std::stringstream ss;
 
 	ss << "["
-		<< BOM << ","
-		<< data_export_format << ","
-		<< csi_export_format << ","
-		<< (int)project_type << ","
-		<< this_mac_str << ","
-		<< tv_now.tv_sec << ","
-		<< tv_now.tv_usec << ","
-		<< rx_timestamp << ","
-		<< pkt_mac << ","
-		<< csi_info.rx_ctrl.rssi << ","
-		<< csi_info.rx_ctrl.rate << ","
-		<< csi_info.rx_ctrl.sig_mode << ","
-		<< csi_info.rx_ctrl.mcs << ","
-		<< csi_info.rx_ctrl.cwb << ","
-		<< csi_info.rx_ctrl.smoothing << ","
-		<< csi_info.rx_ctrl.not_sounding << ","
-		<< csi_info.rx_ctrl.aggregation << ","
-		<< csi_info.rx_ctrl.stbc << ","
-		<< csi_info.rx_ctrl.fec_coding << ","
-		<< csi_info.rx_ctrl.sgi << ","
-		<< csi_info.rx_ctrl.noise_floor << ","
-		<< csi_info.rx_ctrl.ampdu_cnt << ","
-		<< csi_info.rx_ctrl.channel << ","
-		<< csi_info.rx_ctrl.secondary_channel << ","
-		<< csi_info.rx_ctrl.timestamp << ","
-		<< csi_info.rx_ctrl.ant << ","
-		<< csi_info.rx_ctrl.sig_len << ","
-		<< csi_info.rx_ctrl.rx_state << ","
-		<< data->first_word_invalid ? 1 : 0 << ","
-		<< data->len << ",\"";
+	   << BOM << ","
+	   << data_export_format << ","
+	   << csi_export_format << ","
+	   << (int)project_type << ","
+	   << this_mac_str << ","
+	   << tv_now.tv_sec << ","
+	   << tv_now.tv_usec << ","
+	   << rx_ctrl.timestamp << ","
+	   << pkt_mac << ","
+	   << rx_ctrl.rssi << ","
+	   << rx_ctrl.rate << ","
+	   << rx_ctrl.sig_mode << ","
+	   << rx_ctrl.mcs << ","
+	   << rx_ctrl.cwb << ","
+	   << rx_ctrl.smoothing << ","
+	   << rx_ctrl.not_sounding << ","
+	   << rx_ctrl.aggregation << ","
+	   << rx_ctrl.stbc << ","
+	   << rx_ctrl.fec_coding << ","
+	   << rx_ctrl.sgi << ","
+	   << rx_ctrl.noise_floor << ","
+	   << rx_ctrl.ampdu_cnt << ","
+	   << rx_ctrl.channel << ","
+	   << rx_ctrl.secondary_channel << ","
+	   << rx_ctrl.timestamp << ","
+	   << rx_ctrl.ant << ","
+	   << rx_ctrl.sig_len << ","
+	   << rx_ctrl.rx_state << ","
+	   << data->first_word_invalid
+		? 1
+		: 0 << ","
+			<< data->len << ",\"";
 
 	memcpy(crecord, data->buf, data->len);
 	base64encode();
-	ss << hrecord << "\"," << rx_timestamp << "]\n";
+	ss << hrecord << "\"," << rx_ctrl.timestamp << "]\n";
 	printf(ss.str().c_str());
 	fflush(stdout);
-	xSemaphoreGive(mutex);
-	taskYIELD();
 }
 #endif
 
 #if DATA_EXPORT_FORMAT == EXPORT_CSV
-void data_export(void *ctx, wifi_csi_info_t *data)
+inline void data_export(void *ctx, wifi_csi_info_t *data)
 {
 	/*
 	 * Slightly modified version of the original CSV export.
 	 */
-	xSemaphoreTake(mutex, portMAX_DELAY);
 	long sys_timestamp = get_steady_clock_timestamp();
 	std::stringstream ss;
 
@@ -385,52 +384,49 @@ void data_export(void *ctx, wifi_csi_info_t *data)
 	ss << "]\n";
 	printf(ss.str().c_str());
 	fflush(stdout);
-	taskYIELD();
-	xSemaphoreGive(mutex);
 }
 #endif
 
 #if DATA_EXPORT_FORMAT == EXPORT_NOP
-void data_export(void *ctx, wifi_csi_info_t *data)
+inline void data_export(void *ctx, wifi_csi_info_t *data)
 {
 	/*
 	 * Do next to nothing, but do it well -- Usefull for perfromance monitoring.
 	 */
-	xSemaphoreTake(mutex, portMAX_DELAY);
-	xSemaphoreGive(mutex);
 	taskYIELD();
 }
 #endif
 
 #ifdef ENABLE_SUMMARY_STATS
-auto interval_timestamp = std::chrono::steady_clock::now();
-auto performance_timestamp = std::chrono::steady_clock::now();
-uint32_t pkt_counter = 0;
-uint32_t report_interval = 128;
-void gather_stats(void *ctx, wifi_csi_info_t *data)
+static auto interval_timestamp = std::chrono::steady_clock::now();
+static auto performance_timestamp = std::chrono::steady_clock::now();
+static uint32_t pkt_counter = 0;
+static uint32_t report_interval = 4096;
+#endif
+
+void export_csi(void *ctx, wifi_csi_info_t *data)
 {
 	xSemaphoreTake(mutex, portMAX_DELAY);
+	#ifdef ENABLE_SUMMARY_STATS
 	std::chrono::duration<long, std::micro> dt1 = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - performance_timestamp);
 	performance_timestamp = std::chrono::steady_clock::now();
-	xSemaphoreGive(mutex);
-
+	#endif
 	data_export(ctx, data);
-	xSemaphoreTake(mutex, portMAX_DELAY);
+	#ifdef ENABLE_SUMMARY_STATS
 	++pkt_counter;
 	std::chrono::duration<long, std::micro> dt2 = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - performance_timestamp);
 	ESP_LOGI(TAG, "{ \"msgid\":1, \"dt since last call\":%ld, \"export data dt\":%ld }\n", dt1.count(), dt2.count());
 	if (pkt_counter > report_interval)
 	{
 		std::chrono::duration<long, std::micro> dt = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - interval_timestamp);
-		ESP_LOGI(TAG, "{ \"msgid\":2, \"pkt_counter\":%d, \"per packet dt\":%f, \"Minimum free heap size\": \"%d\" }\n", pkt_counter, (double)dt.count() / pkt_counter, esp_get_minimum_free_heap_size());		
+		ESP_LOGI(TAG, "{ \"msgid\":2, \"pkt_counter\":%d, \"per packet dt\":%f, \"Minimum free heap size\": \"%d\" }\n", pkt_counter, (double)dt.count() / pkt_counter, esp_get_minimum_free_heap_size());
 		pkt_counter = 0;
 		interval_timestamp = std::chrono::steady_clock::now();
 	}
-
 	performance_timestamp = std::chrono::steady_clock::now();
+	#endif
 	xSemaphoreGive(mutex);
 }
-#endif
 
 void csi_init(uint8_t type)
 {
@@ -450,12 +446,7 @@ void csi_init(uint8_t type)
 #if DATA_EXPORT_FORMAT == EXPORT_JSON || DATA_EXPORT_FORMAT == EXPORT_CSV
 	sprintf(this_mac_str, "%02X:%02X:%02X:%02X:%02X:%02X", this_mac[0], this_mac[1], this_mac[2], this_mac[3], this_mac[4], this_mac[5]);
 #endif
-
-#ifdef ENABLE_SUMMARY_STATS
-	ESP_ERROR_CHECK(esp_wifi_set_csi_rx_cb(&gather_stats, NULL));
-#else
-	ESP_ERROR_CHECK(esp_wifi_set_csi_rx_cb(&data_export, NULL));
-#endif
+	ESP_ERROR_CHECK(esp_wifi_set_csi_rx_cb(&export_csi, NULL));
 }
 
 #endif // ESP32_CSI_CSI_COMPONENT_H
