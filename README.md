@@ -12,12 +12,12 @@ Settings can be configured as described below.
 
 ## ESP32 Devices
 
-There are lots of ESP32 devices out there.  The code in this repo has been succeasfully run with a serial port (UART/Console) BAUD of 4000000:
+There are lots of ESP32 devices out there.  The code in this repo has been succeasfully run with a serial port (UART/Console) BAUD of 4000000 for the ESP32S3 and 3000000 for the ESP32E:
 
-  * [FireBeetle 2](https://www.dfrobot.com/product-2195.html) -- 8MB Flash, No PSRAM
-  * [ESP32-S3 DevKitC](https://www.dfrobot.com/product-2587.html) -- 4MB Flash, No PSRAM
-  * [FeatherS3](https://shop.pimoroni.com/products/feathers3-esp32-s3?variant=39762596298835) -- (16MB Flash, 8MB PSRAM)
-  * [Adafruit ESP32S3](https://shop.pimoroni.com/products/adafruit-esp32-s3-feather-with-4mb-flash-2mb-psram-stemma-qt-qwiic?variant=40017517215827) -- (4MB Flash, 2MB PSRAM)
+  * [FireBeetle 2](https://www.dfrobot.com/product-2195.html) -- (ESP32E, 8MB Flash, No PSRAM)
+  * [ESP32-S3 DevKitC](https://www.dfrobot.com/product-2587.html) -- (ESP32S3, 4MB Flash, No PSRAM)
+  * [FeatherS3](https://shop.pimoroni.com/products/feathers3-esp32-s3?variant=39762596298835) -- (ESP32S3, 16MB Flash, 8MB PSRAM)
+  * [Adafruit ESP32S3](https://shop.pimoroni.com/products/adafruit-esp32-s3-feather-with-4mb-flash-2mb-psram-stemma-qt-qwiic?variant=40017517215827) -- (ESP32S3, 4MB Flash, 2MB PSRAM)
 
 ## Installation
 

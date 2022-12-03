@@ -254,11 +254,11 @@ inline void data_export(void *ctx, wifi_csi_info_t *data)
 	unsigval8 = data->first_word_invalid;
 	memcpy(p, &unsigval8, sizeof(unsigval8)); // 1
 	p += sizeof(unsigval8);
-	csi_data_len = data->len;
-	memcpy(p, &csi_data_len, sizeof(csi_data_len)); // 2
-	p += sizeof(csi_data_len);
+	unsigval16 = data->len;
+	memcpy(p, &unsigval16, sizeof(unsigval16)); // 2
+	p += sizeof(unsigval16);
 
-	memcpy(p, data->buf, csi_data_len);
+	memcpy(p, data->buf, unsigval16);
 	p += MAX_CSI_BYTES;
 	// Output tail
 	rx_timestamp = rx_ctrl.timestamp;

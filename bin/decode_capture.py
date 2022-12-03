@@ -59,24 +59,24 @@ COLUMN_NAMES = [
     "ant",
     "sig_len",
     "rx_state",
-    "first_word_invalid"
+    "first_word_invalid",
     "csi_len",
     "csi_data",
     "rx_timestamp_guard",
 ]
 
-NO_STBC_HTLTF_ROWLEN = 452
 # Constant prefix created by the BOM.
 BASE64_LINE_PREFIX = "/v"
 
 
 def decode_base64(txt):
     btxt = b64decode(txt)
+
     bom, fmt, rlen = struct.unpack_from("<IHi", btxt)
     row = None    
-    if bom == 65534 and rlen == NO_STBC_HTLTF_ROWLEN:        
-        row = struct.unpack_from("<IHiHB6BIII6Bb10Bb3BIBHBBH384sI", btxt)        
-        row = {k: v for k, v in zip(COLUMN_NAMES, row)}        
+    if bom == 65534:        
+        row = struct.unpack_from("<IHiHB6BIII6Bb10Bb3BIBHBBH384sI", btxt)
+        row = {k: v for k, v in zip(COLUMN_NAMES, row)}
         row["this_mac"] = "{:02X}:{:02X}:{:02X}:{:02X}:{:02X}:{:02X}".format(
             row.pop("this_mac1"),
             row.pop("this_mac2"),
@@ -94,6 +94,7 @@ def decode_base64(txt):
             row.pop("pkt_mac6"),
         )
         row["csi_data"] = struct.unpack_from("384b", row["csi_data"])
+        row["first_word_invalid"]=True if row["first_word_invalid"] else False
     return row
 
 
